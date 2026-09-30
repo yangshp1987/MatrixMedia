@@ -62,6 +62,38 @@ router.post("/changeData", function (req, res) {
   res.json(changeData({ ...req.body }));
 });
 
+router.post("/publish-article", async function (req, res) {
+  try {
+    const { parsePublishArticleArgs } = await import("../../cli/parsePublishArticleArgs.js");
+    const { runArticlePublish } = await import("../../services/publishArticle.js");
+    const body = req.body || {};
+    const argv = [];
+    const add = (flag, value) => { if (value !== undefined && value !== null && String(value).length) argv.push(flag, String(value)); };
+    add("--platform", body.platform);
+    add("--phone", body.phone);
+    add("--partition", body.partition);
+    add("--title", body.title);
+    add("--content", body.content);
+    add("--file", body.file);
+    add("--cover", body.cover);
+    add("--category", body.category);
+    add("--tags", body.tags);
+    add("--summary", body.summary);
+    add("--mode", body.mode || "assisted");
+    (Array.isArray(body.images) ? body.images : []).forEach(image => add("--image", image));
+    const parsed = parsePublishArticleArgs(argv);
+    if (!parsed.ok) return res.status(400).json({ success: false, status: "failed", message: parsed.error });
+    const result = await runArticlePublish(parsed.value);
+    return res.status(result.exitCode === 2 ? 400 : 200).json({
+      success: result.exitCode === 0,
+      ...result,
+    });
+  } catch (error) {
+    console.error("[HTTP /publish-article]", error);
+    return res.status(500).json({ success: false, status: "failed", message: error && error.message ? error.message : String(error) });
+  }
+});
+
 router.post("/publish", async function (req, res) {
   try {
     const { parseMultiPublishRequest } = await import(

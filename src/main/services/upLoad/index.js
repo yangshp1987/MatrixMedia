@@ -6,4 +6,7 @@ export { default as tt } from "./tt.js";
 export { default as ks } from "./ks.js";
 export { default as xhs } from "./xhs.js";
 export { default as juejin } from "./juejin.js";
-export { default as fqsp } from "./fqsp.js";
+export { default as fqsp } from "./fqsp.js";export { default as zhihu } from "./zhihu.js";
+export { default as wechatArticle } from "./wechatArticle.js";
+export { default as twitterArticle } from "./twitterArticle.js";
+export { default as juejinAssisted } from "./juejinAssisted.js";

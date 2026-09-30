@@ -62,6 +62,24 @@ export default {
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
     listIndex: "https://juejin.cn/creator/content/article/essays?status=published",
   },
+  知乎: {
+    index: "https://www.zhihu.com/signin",
+    upload: "https://zhuanlan.zhihu.com/write",
+    useragent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+    listIndex: "https://www.zhihu.com/creator/manage/creation/all",
+  },
+  微信公众号: {
+    index: "https://mp.weixin.qq.com/",
+    upload: "https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit_v2&action=edit&type=10&isNew=1",
+    useragent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+    listIndex: "https://mp.weixin.qq.com/",
+  },
+  "X/Twitter": {
+    index: "https://x.com/login",
+    upload: "https://x.com/compose/post",
+    useragent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+    listIndex: "https://x.com/home",
+  },
   番茄视频: {
     index: "https://pugc.yueduwuxian.com/fqvideo/login",
     upload: "https://pugc.yueduwuxian.com/fqvideo/home/publish-video",

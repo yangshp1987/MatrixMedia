@@ -1,4 +1,4 @@
-import { dy, bjh, blbl, sph, tt, ks, xhs, juejin, fqsp } from "./upLoad";
+import { dy, bjh, blbl, sph, tt, ks, xhs, juejin, fqsp, zhihu, wechatArticle, twitterArticle, juejinAssisted } from "./upLoad";
 import zt from "./zt";
 
 
@@ -11,7 +11,13 @@ export default {
   头条: tt,
   快手: ks,
   小红书: xhs,
-  掘金: juejin,
+  掘金: (page, data, window, event, done) =>
+    data.publishMode === "assisted"
+      ? juejinAssisted(page, data, window, event, done)
+      : juejin(page, data, window, event, done),
+  知乎: zhihu,
+  微信公众号: wechatArticle,
+  "X/Twitter": twitterArticle,
   番茄视频: fqsp,
   // 获取发布状态
   抖音状态: zt.dy,

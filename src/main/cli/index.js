@@ -660,13 +660,15 @@ export async function runCliMain(argv = process.argv) {
         category,
         tags,
         summary,
+        images: (v.images || []).map((file) => path.resolve(file)),
       },
       textOtherName: title,
       selectedFile,
       url: cfg.upload,
       show: v.show,
-      mmCliSuppressWindow: true,
-      closeWindowAfterPublish: true,
+      mmCliSuppressWindow: v.mode !== "assisted",
+      closeWindowAfterPublish: v.closeWindowAfterPublish,
+      publishMode: v.mode,
       useragent: cfg.useragent,
       partition: v.partition,
       pt: v.platform,
@@ -699,8 +701,9 @@ export async function runCliMain(argv = process.argv) {
       republishCount: 0,
       publishSuccessCount: 0,
       publishFailCount: 0,
-      publishStatus: "publishing",
-      lastPublishMessage: "等待发布结果",
+      publishStatus: v.mode === "assisted" ? "preparing" : "publishing",
+      publishMode: v.mode,
+      lastPublishMessage: v.mode === "assisted" ? "正在准备人工确认页面" : "等待发布结果",
       lastPublishAt: Date.now(),
     };
 
@@ -834,14 +837,27 @@ export async function runCliMain(argv = process.argv) {
               finish(0);
               return;
             }
+            const readyForManualSend =
+              payload &&
+              (payload.status === "ready_for_manual_send" ||
+                payload.readyForManualSend === true);
             const ok = payload && payload.status === true;
             console.log(
               JSON.stringify({
                 channel,
-                status: ok,
+                status: readyForManualSend ? "ready_for_manual_send" : ok,
+                readyForManualSend,
                 message: payload && payload.message,
               })
             );
+            if (readyForManualSend) {
+              updateRecord(
+                "ready_for_manual_send",
+                (payload && payload.message) || "内容已填写，等待用户手动发送"
+              );
+              finish(0);
+              return;
+            }
             updateRecord(
               ok ? "success" : "failed",
               (payload && payload.message) ||

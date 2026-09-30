@@ -736,6 +736,30 @@ export default {
       const target = this.findLocalPublishRecord(donePayload);
       if (!target || !target.row || !target.row.id) return;
       const row = this.fillPublishStats(target.row);
+      if (
+        donePayload.status === "ready_for_manual_send" ||
+        donePayload.readyForManualSend === true
+      ) {
+        await dataRequest({
+          type: "update",
+          fileName: "pushData",
+          item: {
+            id: row.id,
+            date: target.date,
+            publishStatus: "ready_for_manual_send",
+            lastPublishMessage: donePayload.message || "内容已填写，等待用户手动发送",
+            lastPublishAt: Date.now(),
+          },
+        });
+        this.$notify({
+          title: "等待人工发送",
+          message: donePayload.message || `${donePayload.pt || "平台"}内容已填写，请检查后手动发送`,
+          type: "success",
+          duration: 0,
+        });
+        this.loadRecords();
+        return;
+      }
       if (donePayload.skipped) {
         await dataRequest({
           type: "update",

@@ -168,3 +168,20 @@ cd mcp && npm install && npm run build
 
 - [CLI 说明](./cli.md)
 - [HTTP API 说明](./http-api.md)
+
+## publish_article 人工确认模式
+
+`publish_article` 支持 `juejin`、`zhihu`、`wechat`、`x`/`twitter`。默认 `mode=assisted`；除掘金外不允许 `publish`。可传 `content` 或 `file`，以及 `cover`、`images[]`。人工确认准备完成时返回 `status=ready_for_manual_send`，用户必须在可见浏览器窗口检查后手动发送。
+
+```json
+{
+  "platform": "zhihu",
+  "phone": "work",
+  "title": "标题",
+  "file": "/absolute/path/post.md",
+  "images": ["/absolute/path/image.png"],
+  "mode": "assisted"
+}
+```
+
+该工具不会处理验证码、不会规避平台限制，也不会点击最终发布/群发/发送按钮。

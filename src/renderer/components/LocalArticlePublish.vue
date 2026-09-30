@@ -84,7 +84,7 @@
     </el-dialog>
 
     <el-dialog
-      title="选择掘金账号并发布"
+      title="选择文章账号并准备发布"
       :close-on-click-modal="false"
       :visible.sync="platformVisible"
       :close-on-press-escape="false"
@@ -92,14 +92,23 @@
       @close="handlePlatformClose"
     >
       <el-form class="article-form">
-        <el-form-item label="是否显示自动化发布过程">
+        <el-form-item label="发布方式">
+          <el-radio-group v-model="publishMode" @change="onPublishModeChange">
+            <el-radio label="assisted">人工确认（推荐，不自动发送）</el-radio>
+            <el-radio label="publish">自动发布（仅掘金）</el-radio>
+          </el-radio-group>
+          <p v-if="publishMode === 'assisted'" class="form-tip">
+            程序只打开编辑页并填写内容，最后的发布、群发或发送按钮必须由你手动点击。
+          </p>
+        </el-form-item>
+        <el-form-item v-if="publishMode !== 'assisted'" label="是否显示自动化发布过程">
           <el-switch
             v-model="thisShow"
             active-text="显示"
             inactive-text="不显示"
           />
         </el-form-item>
-        <el-form-item v-if="thisShow" label="发布完是否关闭窗口">
+        <el-form-item v-if="publishMode !== 'assisted' && thisShow" label="发布完是否关闭窗口">
           <el-switch
             v-model="closeWindow"
             active-text="关闭"
@@ -108,7 +117,7 @@
         </el-form-item>
       </el-form>
 
-      <el-divider content-position="left">掘金账号选择</el-divider>
+      <el-divider content-position="left">文章平台账号选择</el-divider>
 
       <el-tree
         v-if="treeData.length > 0"
@@ -146,12 +155,12 @@
       </el-tree>
       <el-empty
         v-if="treeData.length === 0"
-        description="请先添加掘金平台账号"
+        description="请先添加掘金、知乎、微信公众号或 X/Twitter 账号"
       />
 
       <div slot="footer" class="dialog-footer">
         <el-button @click="platformVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleBatchPublish">发布</el-button>
+        <el-button type="primary" @click="handleBatchPublish">{{ publishMode === "assisted" ? "准备内容" : "发布" }}</el-button>
       </div>
 
       <!-- 旧的 <webview> 登录弹窗已迁移到主进程的独立 BrowserWindow，
@@ -167,6 +176,11 @@ import dataRequest from "@/utils/dataRequest";
 import ptConfig from "@/utils/configUrl";
 import openLoginWindow from "@/utils/openLoginWindow";
 import { buildArticleRepublishState } from "@/utils/articleRepublish";
+import {
+  ARTICLE_ACCOUNT_PLATFORMS,
+  applyArticleModeSafety,
+  isArticleAccount,
+} from "@/utils/articlePublishUi";
 import {
   setAccountLoginFlag,
   clearAccountLoginFlag,
@@ -209,8 +223,9 @@ export default {
         summary: "",
       },
       tags: ["前端", "Electron"],
-      thisShow: false,
-      closeWindow: true,
+      thisShow: true,
+      closeWindow: false,
+      publishMode: "assisted",
       scheduledPublish: false,
       publishAt: "",
       showLoginDialog: false,
@@ -249,6 +264,14 @@ export default {
     }
   },
   methods: {
+    onPublishModeChange(mode) {
+      if (mode === "assisted") {
+        this.thisShow = true;
+        this.closeWindow = false;
+        this.scheduledPublish = false;
+        this.publishAt = "";
+      }
+    },
     open() {
       this.resetState();
       this.metaVisible = true;
@@ -261,8 +284,9 @@ export default {
       this.coverPath = state.coverPath;
       this.form = state.form;
       this.tags = state.tags;
-      this.thisShow = false;
-      this.closeWindow = true;
+      this.thisShow = true;
+      this.closeWindow = false;
+      this.publishMode = "assisted";
       this.scheduledPublish = false;
       this.publishAt = "";
       this.republishContext = {
@@ -381,8 +405,9 @@ export default {
         summary: "",
       };
       this.tags = ["前端", "Electron"];
-      this.thisShow = false;
-      this.closeWindow = true;
+      this.thisShow = true;
+      this.closeWindow = false;
+      this.publishMode = "assisted";
       this.scheduledPublish = false;
       this.publishAt = "";
       this.showLoginDialog = false;
@@ -409,8 +434,7 @@ export default {
             .filter(
               (child) =>
                 child &&
-                child.meta &&
-                String(child.meta.pt || "").trim() === "掘金"
+                isArticleAccount(child.meta)
             )
             .map((child) => {
               const phoneText = child.meta.phone.split("-")[0];
@@ -567,13 +591,13 @@ export default {
         url: this.ptConfig[p.pt].listIndex,
         uploadUrl: this.ptConfig[p.pt].upload,
         date: currentDate,
-        publishMode: "publish",
+        publishMode: extra.publishMode || this.publishMode,
         publishAttemptCount: 1,
         republishCount: 0,
         publishSuccessCount: 0,
         publishFailCount: 0,
-        publishStatus: "publishing",
-        lastPublishMessage: "等待发布结果",
+        publishStatus: this.publishMode === "assisted" ? "preparing" : "publishing",
+        lastPublishMessage: this.publishMode === "assisted" ? "正在准备人工确认页面" : "等待发布结果",
         lastPublishAt: Date.now(),
         ...extra,
       };
@@ -587,13 +611,24 @@ export default {
       }
       const checked = this.$refs.tree ? this.$refs.tree.getCheckedNodes(true) : [];
       const platforms = checked.filter(
-        (item) => item.url && String(item.pt || "").trim() === "掘金"
+        (item) => item.url && ARTICLE_ACCOUNT_PLATFORMS.includes(String(item.pt || "").trim())
       );
       if (platforms.length === 0) {
-        this.$message.warning("请选择掘金账号");
+        this.$message.warning("请选择文章平台账号");
         return;
       }
 
+      const unsupported = platforms.find(
+        (item) => this.publishMode !== "assisted" && item.pt !== "掘金"
+      );
+      if (unsupported) {
+        this.$message.warning(`${unsupported.pt} 仅支持人工确认发布`);
+        return;
+      }
+      if (this.publishMode === "assisted" && this.scheduledPublish) {
+        this.$message.warning("人工确认发布不支持定时任务");
+        return;
+      }
       const article = this.buildArticlePayload();
       const currentDate = moment().format("YYYY-MM-DD");
       const scheduledAtText = String(this.publishAt || "").trim();
@@ -605,10 +640,12 @@ export default {
       for (let p of platforms) {
         const partition = "persist:" + p.phone.split("-")[0] + p.pt;
         const taskId = Date.now() + Math.random();
-        const shouldShow = this.thisShow;
-        const shouldCloseWindowAfterPublish = shouldShow
-          ? this.closeWindow
-          : true;
+        const safeWindow = applyArticleModeSafety(this.publishMode, {
+          show: this.thisShow,
+          closeWindowAfterPublish: this.thisShow ? this.closeWindow : true,
+        });
+        const shouldShow = safeWindow.show;
+        const shouldCloseWindowAfterPublish = safeWindow.closeWindowAfterPublish;
 
         if (this.scheduledPublish) {
           scheduledWritePromises.push(
@@ -632,7 +669,7 @@ export default {
           ...p,
           taskId,
           ...article,
-          publishMode: "publish",
+          publishMode: this.publishMode,
           url: this.ptConfig[p.pt].upload,
           show: shouldShow,
           closeWindowAfterPublish: shouldCloseWindowAfterPublish,
@@ -666,8 +703,8 @@ export default {
               summary: article.data.summary,
               publishAttemptCount: oldAttempt + 1,
               republishCount: oldRepublish + 1,
-              publishMode: "publish",
-              publishStatus: "publishing",
+              publishMode: this.publishMode,
+              publishStatus: this.publishMode === "assisted" ? "preparing" : "publishing",
               // 重发开始即清掉上次失败截图，避免显示的是上一轮的旧画面
               failScreenshot: "",
               lastPublishMessage: "等待发布结果",
@@ -688,8 +725,10 @@ export default {
         ipcRenderer.send("scheduledPublish:refresh");
       }
       const successMessage = this.scheduledPublish
-        ? `已创建 ${platforms.length} 个掘金账号定时发布任务`
-        : `已提交 ${platforms.length} 个掘金账号发布`;
+        ? `已创建 ${platforms.length} 个文章定时发布任务`
+        : this.publishMode === "assisted"
+        ? `已提交 ${platforms.length} 个文章页面准备任务，请在弹出的窗口中手动发送`
+        : `已提交 ${platforms.length} 个文章发布任务`;
       this.$message.success(successMessage);
       this.platformVisible = false;
       this.resetState();

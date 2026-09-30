@@ -19,6 +19,7 @@ import { resolveChromePath } from "./chromeConfig.js";
 import xhsChromeHandler from "./upLoad/xhsChrome.js";
 import { isPlatformLoginUrl } from "../../shared/platformPageState.js";
 import { normalizeVideoMetadata } from "../../shared/videoMetadata.js";
+import { isAssistedArticleTask } from "../../shared/articlePublish.js";
 import {
   FAIL_SCREENSHOT_RETENTION_DAYS,
   buildFailScreenshotName,
@@ -143,6 +144,17 @@ export function hasActivePublishTasks() {
 
 function isExpectedPublishUrl(data, currentUrl) {
   if (currentUrl === data.url) return true;
+  if (data && ["知乎", "微信公众号", "X/Twitter"].includes(data.pt)) {
+    try {
+      const current = new URL(currentUrl);
+      const expected = new URL(data.url);
+      if (data.pt === "知乎") return current.hostname.endsWith("zhihu.com") && current.pathname.startsWith("/write");
+      if (data.pt === "微信公众号") return current.hostname === "mp.weixin.qq.com" && current.pathname.startsWith("/cgi-bin/appmsg");
+      return current.hostname === "x.com" && current.pathname.startsWith("/compose/post");
+    } catch (_) {
+      return String(currentUrl || "").startsWith(String(data.url || ""));
+    }
+  }
   if (data && data.pt === "掘金") {
     try {
       const current = new URL(currentUrl);
@@ -319,13 +331,17 @@ async function doUpload(data, transport, queueDone, runtimeTask) {
         err._mmUploadFailurePayload = payload;
         throw err;
       }
+      const readyForManualSend =
+        channel === "puppeteerFile-done" &&
+        payload &&
+        (payload.status === "ready_for_manual_send" || payload.readyForManualSend === true);
       const ok =
         channel === "puppeteerFile-done" &&
         payload &&
         payload.status === true &&
         !payload.skipped;
       const replied = transport.reply(channel, ...args);
-      if (ok) finishOnce();
+      if (ok || readyForManualSend) finishOnce();
       return replied;
     },
   });
@@ -815,7 +831,7 @@ async function doUpload(data, transport, queueDone, runtimeTask) {
       });
 
       const AUTO_CLOSE_DELAY = UPLOAD_WINDOW_AUTO_CLOSE_MS;
-      if (!isXhsTask) {
+      if (!isXhsTask && !isAssistedArticleTask(data)) {
         autoCloseTimer = setTimeout(() => {
           console.log(
             `窗口 ${data.partition} 已自动关闭（${Math.round(

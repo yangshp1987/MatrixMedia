@@ -70,6 +70,9 @@ const PT_ICON_STEM = {
   小红书: "xhs",
   番茄视频: "fq",
   掘金: "juejin",
+  知乎: "zhihu",
+  微信公众号: "wechat",
+  "X/Twitter": "twitter",
 };
 
 export default {

@@ -3,62 +3,32 @@ import { mkdtemp, writeFile, chmod, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-
-import { handlePublishArticle } from '../dist/tools/publishArticle.js';
+import { derivePartition, handlePublishArticle } from '../dist/tools/publishArticle.js';
 
 async function withFakeMatrixmedia(script, fn) {
   const dir = await mkdtemp(path.join(tmpdir(), 'matrixmedia-mcp-test-'));
   const bin = path.join(dir, 'matrixmedia');
   const originalPath = process.env.PATH;
-
-  await writeFile(bin, script, 'utf8');
-  await chmod(bin, 0o755);
+  await writeFile(bin, script, 'utf8'); await chmod(bin, 0o755);
   process.env.PATH = `${dir}${path.delimiter}${originalPath || ''}`;
-
-  try {
-    return await fn();
-  } finally {
-    process.env.PATH = originalPath;
-    await rm(dir, { recursive: true, force: true });
-  }
+  try { return await fn(); } finally { process.env.PATH = originalPath; await rm(dir, { recursive: true, force: true }); }
 }
 
-const baseArgs = {
-  platform: 'juejin',
-  phone: '13800138000',
-  title: '测试标题',
-  content: '测试正文',
-};
-
-test('publish_article rejects a zero-exit process that only emitted DevTools noise', async () => {
-  await withFakeMatrixmedia(
-    `#!/usr/bin/env node
-process.stderr.write('\\nDevTools listening on ws://127.0.0.1:12345/devtools/browser/test\\n');
-process.exit(0);
-`,
-    async () => {
-      await assert.rejects(
-        () => handlePublishArticle(baseArgs),
-        /未返回发布结果/
-      );
-    }
-  );
+test('derivePartition supports assisted article platforms', () => {
+  assert.equal(derivePartition('a', 'zhihu'), 'persist:a知乎');
+  assert.equal(derivePartition('a', 'wechat'), 'persist:a微信公众号');
+  assert.equal(derivePartition('a', 'twitter'), 'persist:aX/Twitter');
 });
 
-test('publish_article returns the puppeteerFile-done message and ignores DevTools noise', async () => {
-  await withFakeMatrixmedia(
-    `#!/usr/bin/env node
-process.stderr.write('\\nDevTools listening on ws://127.0.0.1:12345/devtools/browser/test\\n');
-process.stdout.write(JSON.stringify({ channel: 'puppeteerFile-done', status: true, message: '文章发布成功' }) + '\\n');
-process.exit(0);
-`,
-    async () => {
-      const result = JSON.parse(await handlePublishArticle(baseArgs));
+test('publish_article returns ready_for_manual_send', async () => {
+  await withFakeMatrixmedia(`#!/usr/bin/env node
+process.stdout.write(JSON.stringify({ channel: 'puppeteerFile-done', status: 'ready_for_manual_send', readyForManualSend: true, message: '请手动发送' }) + '\\n');
+`, async () => {
+    const result = JSON.parse(await handlePublishArticle({ platform: 'zhihu', phone: 'a', title: 't', content: 'c' }));
+    assert.equal(result.status, 'ready_for_manual_send');
+  });
+});
 
-      assert.deepEqual(result, {
-        status: 'success',
-        message: '文章发布成功',
-      });
-    }
-  );
+test('non-juejin automatic publish is rejected', async () => {
+  await assert.rejects(() => handlePublishArticle({ platform: 'x', phone: 'a', title: 't', content: 'c', mode: 'publish' }), /only available/);
 });

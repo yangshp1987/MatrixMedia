@@ -327,3 +327,27 @@ curl -X POST http://127.0.0.1:30088/publish \
   ]
 }
 ```
+
+## POST /publish-article
+
+通过现有文章发布链路准备人工确认页面。默认 `mode=assisted`，支持 `juejin`、`zhihu`、`wechat`、`x/twitter`。知乎、微信公众号和 X/Twitter 不接受自动发布模式。接口会等到内容填写完成并返回：
+
+```json
+{ "success": true, "exitCode": 0, "status": "ready_for_manual_send", "readyForManualSend": true, "message": "内容已填写，请检查后手动点击最终发送按钮" }
+```
+
+请求示例：
+
+```json
+{
+  "platform": "wechat",
+  "phone": "official",
+  "title": "文章标题",
+  "file": "/absolute/path/post.md",
+  "cover": "/absolute/path/cover.png",
+  "images": ["/absolute/path/inline.png"],
+  "mode": "assisted"
+}
+```
+
+`title` 必填，`content`/`file` 至少一个。`mode` 可为 `assisted` 或 `manual-confirm`；该模式强制显示并保留浏览器窗口，永不点击最终发布/群发/发送按钮。

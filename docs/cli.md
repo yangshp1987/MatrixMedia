@@ -202,3 +202,17 @@ electron . cli publish-article -p juejin --phone 13800138000 -t "文章标题" -
 - `yarn build:mac`：macOS dmg（x64 + arm64）
 - `yarn build:linux`：Linux AppImage
 - `yarn build:all`：Windows + Linux + macOS
+
+## 人工确认文章发布（assisted / manual-confirm）
+
+`publish-article` 现支持掘金、知乎、微信公众号和 X/Twitter。后三个平台只允许人工确认模式：程序打开可见编辑页并尽量填写标题、正文、封面/图片，**不会点击最终“发布”“群发”“发送”或 Post 按钮**。完成准备后输出 `status: "ready_for_manual_send"`，窗口保持打开，由用户检查并手动发送。
+
+```bash
+matrixmedia cli publish-article -p zhihu --phone work -t "标题" -f ./post.md --mode assisted
+matrixmedia cli publish-article -p wechat --phone official -t "标题" -f ./post.md --cover ./cover.png --mode manual-confirm
+matrixmedia cli publish-article -p x --phone account -t "标题" --content "正文" --image ./image.png --mode assisted
+```
+
+平台别名：知乎 `zhihu/zh/知乎`；微信公众号 `wechat/weixin/wx/mp/wechatmp/公众号/微信公众号`；X/Twitter `x/twitter/tweet/推特`。`--image` 可重复传入。人工确认模式强制 `show=true`、`closeWindowAfterPublish=false`，且不支持 `--publish-at`。
+
+> 首次使用请先在 GUI 的“添加媒体账号”中添加平台并完成登录。各平台会不定期改版；若内容未填入，请保留窗口并按本文末“真机 selector”说明反馈，不要尝试绕过验证码或平台限制。

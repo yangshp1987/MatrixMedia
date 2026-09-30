@@ -1,16 +1,12 @@
 "use strict";
 
-const PLATFORM_ALIASES = {
-  juejin: "掘金",
-  jj: "掘金",
-  掘金: "掘金",
-};
-
-function normalizePlatform(platform) {
-  const raw = String(platform || "").trim();
-  const lower = raw.toLowerCase();
-  return PLATFORM_ALIASES[raw] || PLATFORM_ALIASES[lower] || raw;
-}
+import {
+  ARTICLE_PUBLISH_MODE,
+  AUTOMATIC_ARTICLE_PLATFORMS,
+  isAssistedArticlePlatform,
+  normalizeArticlePublishMode,
+  resolveArticlePlatform,
+} from "../../shared/articlePublish.js";
 
 function readOptionValue(args, index, optionName) {
   const next = args[index + 1];
@@ -53,6 +49,8 @@ export function parsePublishArticleArgs(subArgv) {
     publishAt: null,
     show: false,
     closeWindowAfterPublish: true,
+    mode: ARTICLE_PUBLISH_MODE.AUTOMATIC,
+    images: [],
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -112,6 +110,17 @@ export function parsePublishArticleArgs(subArgv) {
       if (!read.ok) return { ok: false, error: read.error };
       out.publishAt = read.value;
       i = read.nextIndex;
+    } else if (a === "--mode") {
+      const read = readOptionValue(args, i, "--mode");
+      if (!read.ok) return { ok: false, error: read.error };
+      out.mode = normalizeArticlePublishMode(read.value);
+      if (!out.mode) return { ok: false, error: `未知文章发布模式: ${read.value}` };
+      i = read.nextIndex;
+    } else if (a === "--image") {
+      const read = readOptionValue(args, i, "--image");
+      if (!read.ok) return { ok: false, error: read.error };
+      out.images.push(read.value);
+      i = read.nextIndex;
     } else if (a === "--show") {
       out.show = true;
     } else if (a === "--no-close-window") {
@@ -120,12 +129,15 @@ export function parsePublishArticleArgs(subArgv) {
   }
 
   if (!out.platform) {
-    return { ok: false, error: "缺少 --platform（或 -p），掘金文章发布请使用 juejin / jj / 掘金" };
+    return { ok: false, error: "缺少 --platform（或 -p）" };
   }
 
-  const pt = normalizePlatform(out.platform);
-  if (pt !== "掘金") {
+  const pt = resolveArticlePlatform(out.platform);
+  if (!isAssistedArticlePlatform(pt)) {
     return { ok: false, error: `未知平台: ${out.platform}` };
+  }
+  if (out.mode !== ARTICLE_PUBLISH_MODE.ASSISTED && !AUTOMATIC_ARTICLE_PLATFORMS.includes(pt)) {
+    return { ok: false, error: `${pt} 仅支持 --mode assisted（manual-confirm）` };
   }
   out.platform = pt;
 
@@ -148,8 +160,13 @@ export function parsePublishArticleArgs(subArgv) {
     return { ok: false, error: "缺少 --content 或 --file（至少提供正文或 Markdown 文件路径）" };
   }
 
-  if (out.show) {
-    console.warn("MatrixMedia: CLI publish-article 不显示浏览器窗口，已忽略 --show。");
+  if (out.mode === ARTICLE_PUBLISH_MODE.ASSISTED) {
+    if (out.publishAt) return { ok: false, error: "人工确认模式不支持 --publish-at" };
+    // 强制安全不变量：人工确认必须可见，且不得由程序关闭待发送窗口。
+    out.show = true;
+    out.closeWindowAfterPublish = false;
+  } else if (out.show) {
+    console.warn("MatrixMedia: CLI 自动文章发布不显示浏览器窗口，已忽略 --show。");
     out.show = false;
   }
 
@@ -161,24 +178,28 @@ export function publishArticleHelpText() {
 用法: <应用> cli publish-article [选项]
 
 选项:
-  -p, --platform <id>   平台：juejin | jj | 掘金（当前仅支持掘金）
+  -p, --platform <id>   平台：juejin / zhihu / wechat / x / twitter（支持中文别名）
   -t, --title <text>    文章标题（必填）
       --content <text>  文章正文；与 --file 至少提供一个
   -f, --file <path>     Markdown 正文文件路径；与 --content 至少提供一个
       --cover <path>    封面图片路径
+      --image <path>    正文图片，可重复传入
       --phone <id>      账号手机号（与 GUI 账号树一致，可与 partition 二选一）
       --partition <p>   完整 session partition，如 persist:13800138000掘金
       --category <name> 分类，默认 "前端"
       --tags <text>     标签，默认 "前端 Electron"，多个标签用空格分隔
       --summary <text>  文章摘要
-      --publish-at <t>  一次性定时发布，格式 "YYYY-MM-DD HH:mm:ss"
-      --show            （已忽略）CLI 不显示浏览器窗口
-      --no-close-window 发布后不自动关窗（仅 GUI 显示窗口时有效）
+      --mode <mode>     publish（仅掘金）或 assisted / manual-confirm
+      --publish-at <t>  一次性定时发布；assisted 不支持
+      --show            自动模式忽略；assisted 模式强制显示
+      --no-close-window 不自动关窗；assisted 模式强制启用
   -h, --help            显示帮助
 
 示例:
   matrixmedia cli publish-article -p juejin --phone 13800138000 -t "标题" --content "正文"
   matrixmedia cli publish-article -p jj --phone 13800138000 -t "标题" -f ./article.md --tags "前端 Electron"
-  matrixmedia cli publish-article -p 掘金 --partition persist:13800138000掘金 -t "标题" --content "正文" --publish-at "2026-05-13 10:00:00"
+  matrixmedia cli publish-article -p zhihu --phone 13800138000 -t "标题" --content "正文" --mode assisted
+  matrixmedia cli publish-article -p wechat --phone 公众号A -t "标题" -f ./article.md --mode manual-confirm
+  matrixmedia cli publish-article -p x --phone account -t "标题" --content "正文" --mode assisted
 `.trim();
 }
