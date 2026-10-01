@@ -17,7 +17,10 @@ import {
 } from "../../shared/xhsPublishPolicy.js";
 import { resolveChromePath } from "./chromeConfig.js";
 import xhsChromeHandler from "./upLoad/xhsChrome.js";
-import { isPlatformLoginUrl } from "../../shared/platformPageState.js";
+import {
+  isPlatformLoginText,
+  isPlatformLoginUrl,
+} from "../../shared/platformPageState.js";
 import { normalizeVideoMetadata } from "../../shared/videoMetadata.js";
 import { isAssistedArticleTask } from "../../shared/articlePublish.js";
 import {
@@ -148,9 +151,20 @@ function isExpectedPublishUrl(data, currentUrl) {
     try {
       const current = new URL(currentUrl);
       const expected = new URL(data.url);
-      if (data.pt === "知乎") return current.hostname.endsWith("zhihu.com") && current.pathname.startsWith("/write");
-      if (data.pt === "微信公众号") return current.hostname === "mp.weixin.qq.com" && current.pathname.startsWith("/cgi-bin/appmsg");
-      return current.hostname === "x.com" && current.pathname.startsWith("/compose/post");
+      if (data.pt === "知乎")
+        return (
+          current.hostname.endsWith("zhihu.com") &&
+          current.pathname.startsWith("/write")
+        );
+      if (data.pt === "微信公众号")
+        return (
+          current.hostname === "mp.weixin.qq.com" &&
+          current.pathname.startsWith("/cgi-bin/appmsg")
+        );
+      return (
+        current.hostname === "x.com" &&
+        current.pathname.startsWith("/compose/post")
+      );
     } catch (_) {
       return String(currentUrl || "").startsWith(String(data.url || ""));
     }
@@ -334,7 +348,8 @@ async function doUpload(data, transport, queueDone, runtimeTask) {
       const readyForManualSend =
         channel === "puppeteerFile-done" &&
         payload &&
-        (payload.status === "ready_for_manual_send" || payload.readyForManualSend === true);
+        (payload.status === "ready_for_manual_send" ||
+          payload.readyForManualSend === true);
       const ok =
         channel === "puppeteerFile-done" &&
         payload &&
@@ -941,6 +956,34 @@ async function doUpload(data, transport, queueDone, runtimeTask) {
             throw new Error("页面对象不可用");
           }
           const currentUrl = page.url();
+          let loginExpired = isPlatformLoginUrl(data.pt, currentUrl);
+          if (!loginExpired && data.pt === "微信公众号") {
+            const bodyText = await page
+              .evaluate(() => (document.body && document.body.innerText) || "")
+              .catch(() => "");
+            loginExpired = isPlatformLoginText(data.pt, bodyText);
+          }
+          if (loginExpired) {
+            const message = `${data.pt}登录状态已失效，请重新登录后再试`;
+            console.error(`[auth] ${message}: ${currentUrl}`);
+            safeReply("puppeteer-noLogin", {
+              ...data,
+              currentUrl,
+              message,
+            });
+            // 必须成对补发 puppeteerFile-done：GUI 发布记录只由该事件驱动。
+            safeReply("puppeteerFile-done", {
+              ...data,
+              status: false,
+              currentUrl,
+              message,
+            });
+            finishOnce();
+            if (win && !win.isDestroyed()) {
+              closePublishWinProgrammatically(win);
+            }
+            return;
+          }
           if (isExpectedPublishUrl(data, currentUrl)) {
             const action = Type[data.pt];
             if (typeof action !== "function") {
@@ -965,28 +1008,6 @@ async function doUpload(data, transport, queueDone, runtimeTask) {
             console.log(
               `尝试${currentAttempt} URL不匹配: ${currentUrl}，关闭窗口并重新尝试`
             );
-            if (isPlatformLoginUrl(data.pt, currentUrl)) {
-              const message = `${data.pt}登录状态已失效，请重新登录后再试`;
-              console.error(`[auth] ${message}: ${currentUrl}`);
-              safeReply("puppeteer-noLogin", {
-                ...data,
-                currentUrl,
-                message,
-              });
-              // 必须成对补发 puppeteerFile-done：GUI 发布记录只由该事件驱动，
-              // 只发 noLogin 会让记录永远停在初始的「保存草稿中 / 发布中」。
-              safeReply("puppeteerFile-done", {
-                ...data,
-                status: false,
-                currentUrl,
-                message,
-              });
-              finishOnce();
-              if (win && !win.isDestroyed()) {
-                closePublishWinProgrammatically(win);
-              }
-              return;
-            }
             if (isXhsTask) {
               await replyFailureWithShot({
                 ...data,

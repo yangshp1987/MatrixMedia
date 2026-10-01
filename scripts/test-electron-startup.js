@@ -10,6 +10,7 @@ const {
   initializeElectronRuntime,
 } = require("../src/main/services/electronStartup");
 const {
+  isPlatformLoginText,
   isPlatformLoginUrl,
 } = require("../src/shared/platformPageState");
 
@@ -91,10 +92,7 @@ async function main() {
   await testStartupFailure();
   await testStartupTimeout();
   assert.strictEqual(
-    isPlatformLoginUrl(
-      "视频号",
-      "https://channels.weixin.qq.com/login.html"
-    ),
+    isPlatformLoginUrl("视频号", "https://channels.weixin.qq.com/login.html"),
     true
   );
   assert.strictEqual(
@@ -106,6 +104,33 @@ async function main() {
   );
   assert.strictEqual(
     isPlatformLoginUrl("抖音", "https://channels.weixin.qq.com/login.html"),
+    false
+  );
+  assert.strictEqual(
+    isPlatformLoginUrl("知乎", "https://www.zhihu.com/signin?next=%2Fwrite"),
+    true
+  );
+  assert.strictEqual(
+    isPlatformLoginUrl(
+      "X/Twitter",
+      "https://x.com/i/jf/onboarding/web?mode=login"
+    ),
+    true
+  );
+  assert.strictEqual(
+    isPlatformLoginUrl("X/Twitter", "https://x.com/compose/post"),
+    false
+  );
+  assert.strictEqual(
+    isPlatformLoginText("微信公众号", "登录超时， 请重新登录"),
+    true
+  );
+  assert.strictEqual(
+    isPlatformLoginText("微信公众号", "新建图文消息 标题 正文"),
+    false
+  );
+  assert.strictEqual(
+    isPlatformLoginText("知乎", "登录超时， 请重新登录"),
     false
   );
   console.log("test-electron-startup passed");
