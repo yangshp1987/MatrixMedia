@@ -10,6 +10,15 @@ import {
   parsePublishArticleArgs,
   publishArticleHelpText,
 } from "./parsePublishArticleArgs";
+import {
+  parsePublishMultipostArgs,
+  publishMultipostHelpText,
+} from "./parsePublishMultipostArgs";
+import {
+  parseMultipostPublishRequest,
+  runMultipostPublish,
+} from "../services/publishMultipost.js";
+
 import { parseLoginArgs, loginHelpText } from "./parseLoginArgs";
 import { parseAccountsArgs, accountsHelpText } from "./parseAccountsArgs";
 import { parseHistoryArgs, historyHelpText } from "./parseHistoryArgs";
@@ -508,10 +517,11 @@ export async function runCliMain(argv = process.argv) {
   const sub = getCliSubArgv(argv);
   if (!sub || sub.length === 0) {
     console.error(
-      "用法: <应用> cli <publish|publish-article|login|accounts|history> ..."
+      "用法: <应用> cli <publish|publish-article|publish-multipost|login|accounts|history> ..."
     );
     console.error("  cli publish --help");
-    console.error("  cli publish-article --help");
+    console.error("  cli publish-article --help"
+    console.error("  cli publish-multipost --help"););
     console.error("  cli login --help");
     console.error("  cli accounts --help");
     console.error("  cli history --help");
@@ -885,6 +895,40 @@ export async function runCliMain(argv = process.argv) {
     });
   }
 
+
+  if (cmd === "publish-multipost") {
+    const parsed = parsePublishMultipostArgs(sub.slice(1));
+    if (!parsed.ok) {
+      console.error(parsed.error);
+      return 2;
+    }
+    if (parsed.value.help) {
+      console.log(publishMultipostHelpText());
+      return 0;
+    }
+    const v = parsed.value;
+    try {
+      const result = await runMultipostPublish(v);
+      if (result.exitCode === 0) {
+        console.log(
+          JSON.stringify({
+            success: true,
+            status: result.status,
+            message: result.message,
+            platforms: result.platforms,
+            autoPublish: result.autoPublish,
+          })
+        );
+      } else {
+        console.error(result.message);
+      }
+      return result.exitCode;
+    } catch (e) {
+      console.error("publish-multipost 异常:", e && e.message ? e.message : String(e));
+      return 1;
+    }
+  }
+
   if (cmd === "accounts") {
     const parsed = parseAccountsArgs(sub.slice(1));
     if (!parsed.ok) {
@@ -923,13 +967,13 @@ export async function runCliMain(argv = process.argv) {
 
   if (cmd === "--help" || cmd === "-h") {
     console.log(
-      "可用子命令: publish | publish-article | login | accounts | history"
+      "可用子命令: publish | publish-article | publish-multipost | login | accounts | history"
     );
     console.log("各自 --help 查看详细参数。");
     return 0;
   }
 
   console.error("未知子命令:", cmd);
-  console.error("支持: publish | publish-article | login | accounts | history");
+  console.error("支持: publish | publish-article | publish-multipost | login | accounts | history");
   return 2;
 }

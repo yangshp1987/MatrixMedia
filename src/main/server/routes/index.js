@@ -136,3 +136,28 @@ router.post("/publish", async function (req, res) {
 });
 
 module.exports = router;
+
+router.get("/multipost/status", async function (req, res) {
+  try {
+    const { multipostBridge } = await import("../../services/multipostBridge.js");
+    await multipostBridge.start();
+    const bridgeStatus = { running: multipostBridge.isRunning, clients: multipostBridge._clients.size, bridgeUrl: multipostBridge.origin + "/bridge.html" };
+    const extStatus = await multipostBridge.checkExtension({ timeoutMs: 5000 });
+    return res.json({ success: true, bridge: bridgeStatus, extension: extStatus });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error && error.message ? error.message : String(error) });
+  }
+});
+
+router.post("/publish-multipost", async function (req, res) {
+  try {
+    const { parseMultipostPublishRequest, runMultipostPublish } = await import("../../services/publishMultipost.js");
+    const parsed = parseMultipostPublishRequest(req.body || {});
+    if (!parsed.ok) return res.status(400).json({ success: false, status: "failed", message: parsed.error });
+    const result = await runMultipostPublish(parsed.value);
+    return res.status(result.exitCode === 2 ? 400 : 200).json({ success: result.exitCode === 0, ...result });
+  } catch (error) {
+    console.error("[HTTP /publish-multipost]", error);
+    return res.status(500).json({ success: false, status: "failed", message: error && error.message ? error.message : String(error) });
+  }
+});

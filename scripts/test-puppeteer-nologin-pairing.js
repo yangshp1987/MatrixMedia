@@ -19,8 +19,8 @@ const src = fs.readFileSync(
 );
 
 /* 1) 定位登录失效分支 */
-const loginBranchIdx = src.indexOf("if (isPlatformLoginUrl(data.pt, currentUrl))");
-assert.ok(loginBranchIdx > 0, "应能找到 isPlatformLoginUrl 分支");
+const loginBranchIdx = src.indexOf("if (loginExpired)");
+assert.ok(loginBranchIdx > 0, "应能找到 loginExpired 分支");
 
 /* 取该分支的代码块（到下一个 return 后的收尾大括号为止） */
 const branchEnd = src.indexOf("if (isXhsTask)", loginBranchIdx);
